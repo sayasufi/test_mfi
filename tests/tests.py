@@ -7,7 +7,7 @@ import pandas as pd
 from source.udp import S_UDP_PACK_ODS_DATA
 from source.unions import dict_to_byte
 from source.window_screen import Screen
-from dict_for_test import sds3X_dict, arinc_dict
+from tests.dict_for_test import sds3X_dict, arinc_dict
 
 
 def valid_color(screen_color, manual_color):
@@ -102,4 +102,42 @@ class TestArincCommands:
             self.udp.send(pack_in)
             time.sleep(0.01)
 
-    for key, value in arinc_dict.items():
+    def test_arinc_data(self):
+        for key, value in arinc_dict.items():
+            if value:
+                for i in value[4]:
+                    self.flag = True
+                    self.udp.udp[key] = self.udp.arinc.get_data_arinc(key, i)
+                    pack = self.udp.get_package()
+                    send_thread = threading.Thread(target=self.send_data, args=(pack,))
+                    send_thread.start()
+                    time.sleep(0.5)
+                    self.screen.screen()
+                    text = self.screen.img_to_text(value[0][0], value[0][1], value[1][0], value[1][1])
+
+                    if value[3] == "float":
+                        digit = float(text)
+                    else:
+                        digit = int(text)
+
+                    temp_dict = {"Имя": value[2],
+                                 "Переменная": key,
+                                 "Значение": i,
+                                 "Измеренное значение": digit,
+                                 "Пройдена ли проверка": None}
+                    if value[5]:
+                        iabs = abs(i)
+                    else:
+                        iabs = i
+                    if abs(digit - iabs) < 0.1:
+                        logging.info(f"'{value[2]} = {i}': Пройдено")
+                        temp_dict["Пройдена ли проверка"] = "Да"
+                    else:
+                        logging.info(f"'{value[2]} = {i}': Не пройдено")
+                        temp_dict["Пройдена ли проверка"] = "Нет"
+                    temp_df = pd.DataFrame(temp_dict, index=[0])
+                    self.df = pd.concat([self.df, temp_df], ignore_index=True)
+                    self.df.to_csv("data/data.csv", index=False)
+                    self.flag = False
+                    send_thread.join()
+                    self.udp.udp[key] = self.udp.arinc.get_data_arinc(key, i)

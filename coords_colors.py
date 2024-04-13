@@ -1,21 +1,9 @@
-import time
-
-import cv2
-import pytesseract
 from source.window_screen import Screen
-a = time.time()
-image = cv2.imread("temp/application_screenshot2.png")
-image = image[352-5:372+5, 783-5:834+5]
-# Преобразование изображения в черно-белое
-gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-# # Применение порогового фильтра
-gray_image = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
 
-# Распознавание текста с помощью Tesseract
-custom_config = r'--oem 3 --psm 6 outputbase digits'
-text = pytesseract.image_to_string(gray_image, config=custom_config)
+window = Screen()
 
-print(float(text.strip()))
+print(window.img_to_text(43-3, 54+3, 178-3, 196+3))
+print(window.img_to_text(143, 155, 178, 198))
+print(window.img_to_text(505, 519, 577, 591))
+print(window.img_to_text(783, 834, 352, 372))
 
-cv2.imshow("g", gray_image)
-cv2.waitKey(0)

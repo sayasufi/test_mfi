@@ -3,8 +3,11 @@ import subprocess
 import time
 
 import cv2
+import numpy as np
 import pyautogui
 import pytesseract
+import easyocr
+from tests.dict_for_test import tabs
 
 
 class Screen:
@@ -48,17 +51,55 @@ class Screen:
         else:
             image = cv2.imread(path)
 
-        image = image[x1 - 5:x2 + 5, y1 - 5:y2 + 5]
+        image = image[y1-5:y2+5, x1-5:x2+5]
+
         # Преобразование изображения в черно-белое
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
         # # Применение порогового фильтра
-        filter_image = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        # filter_image = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        _, binary_image = cv2.threshold(gray_image, 200, 255, cv2.THRESH_BINARY)
+
+        # Создание маски для выделения только чисел
+        white_mask = cv2.merge((binary_image, binary_image, binary_image))
+        # Создание черного фона для результата
+        black_background = np.zeros_like(image)
+        # Копирование только чисел на черный фон
+        image = cv2.bitwise_and(image, white_mask) + black_background
+
+        # Нахождение контуров
+        contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Создание маски для удаления не черных элементов на границе
+        mask = np.zeros_like(gray_image)
+        cv2.drawContours(mask, contours, -1, (255), 1)
+
+        # Применение маски к изображению
+        result = cv2.bitwise_and(image, image, mask=mask)
+
+
+        cv2.imshow('filter', image)
+        cv2.waitKey(0)
+
 
         # Распознавание текста с помощью Tesseract
-        custom_config = r'--oem 3 --psm 6 outputbase digits'
-        text = pytesseract.image_to_string(filter_image, config=custom_config)
+        custom_config = r'--psm 10 --oem 3 -c tessedit_char_whitelist=0123456789.'
 
-        return text.strip()
+        text = pytesseract.image_to_string(result, config=custom_config, lang='eng').strip()
+        return text
+
+        # # Операция эрозии для удаления шума и уменьшения объектов
+        # kernel = np.ones((3, 3), np.uint8)
+        # eroded_image = cv2.erode(filter_image, kernel, iterations=1)
+        # # Операция дилатации для восстановления границ белых чисел в середине
+        # dilated_image = cv2.dilate(eroded_image, kernel, iterations=1)
+        # # Создание маски только для границ белых чисел
+        # edge_mask = cv2.absdiff(dilated_image, eroded_image)
+        # # Применение инверсии маски для выделения границ
+        # edge_mask_inv = cv2.bitwise_not(edge_mask)
+        # # Создание черного фона для результата
+        # black_background = np.zeros_like(image)
+        # # Копирование только границ белых чисел на черный фон
+        # result_image = cv2.bitwise_and(image, image, mask=edge_mask_inv) + black_background
 
     def get_coordinates(self, path=None):
         def click_event(event, x, y, flags, param):
@@ -75,3 +116,11 @@ class Screen:
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+
+    def change_tab(self, number):
+        x = tabs[number]
+        y = tabs[number]
+        pyautogui.click(x+self.x, y+self.y)
+        time.sleep(1)
+
+
